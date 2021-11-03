@@ -1,6 +1,6 @@
 # from core.Core import Core
 import streamlit as st
-from postcreator import twitterpost
+from postcreator import TwitterPostCreator
 
 # """
 #     Main class. Responsible for running the application.
@@ -20,4 +20,4 @@ if __name__ == '__main__':
         st.title("G")
 
     elif option == 'Twitter':
-        twitterpost.main_view()
+        TwitterPostCreator.main_view()
