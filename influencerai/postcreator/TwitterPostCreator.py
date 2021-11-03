@@ -4,71 +4,129 @@ from PIL import Image
 from typing import Dict
 import streamlit as st
 
+
+####################################################
+# Globals
+####################################################
+
+####################################################
+# Functions
+####################################################
+
+def _build_layout():
+    pass
+    
+
 @st.cache(allow_output_mutation=True)
-def get_static_store() -> Dict:
+def _get_static_store() -> Dict:
     """This dictionary is initialized once and can be used to store the files uploaded"""
     return {}
 
-def previewTweet(element_, tweet, static_store):
-    #element_.text(tweet)
+
+def twitter_char_limit(post):
+    emojis = list(filter(lambda p: p.startswith(':') & p.endswith(':'), post.split()))
+    for emoji in emojis:
+        post = post.replace(emoji, ' ')
+    # print(emojis, len(post))
+    if len(post) <= 280:
+        return True, len(post)
+    else:
+        return False, len(post)
+
+
+def _preview_tweet(stColumn: st, tweet: string, static_store):
     for i, post in enumerate(tweet.split('\n\n\n')):
-        element_.info("Post "+str(i+1))
+        charLimit, charLen = twitter_char_limit(post)
+        if charLimit:
+            stColumn.info("Post "+str(i+1)+" --- Char Length: "+str(charLen))
+        else:
+            stColumn.error("Post "+str(i+1)+" --- Char Length: "+str(charLen))
         for line in post.split('\n'):
-            element_.markdown(line, unsafe_allow_html=True)
-        selectedImgs = element_.multiselect("Select Images", static_store.keys(), key=str(i))
+            stColumn.markdown(line, unsafe_allow_html=True)
+        selectedImgs = stColumn.multiselect("Select Images", static_store.keys(), key=str(i))
         for i in selectedImgs:
-            element_.image(load_image(static_store[i]), width=250)
+            stColumn.image(_load_image(static_store[i]), width=250)
 
-def main_view():
 
+def _load_image(image_file):
+   img = Image.open(image_file)
+   return img      
+
+
+def clicked(postBtn, section):
+    if postBtn:
+        section.title("Hello")
+
+####################################################
+# Main function
+####################################################
+
+
+def twitter_postcreator_view():
+
+    # Variables
     twitterPost = [] 
+    static_store = _get_static_store()
 
-    st.sidebar.write("Sidabr this is",)
+    #####################################################################
+    # Create sidebar
+    st.sidebar.write("Sidbar this is",)
 
+    #####################################################################
+    # Create Title and Subtitle
     st.header("Twitter")
-    #c02.image('https://wie.ieee.org/wp-content/uploads/2019/06/twitter-logo-transparent-15.png', width=150)
-    st.subheader("Twitter Post Creator")
-    
-    c1, c2 = st.columns(2)
 
-    #postToTwitter = c2.button('Post to Twitter')
+    subheaderRightCol, postToTwitterLeftCol = st.columns(2)
+    subheaderRightCol.subheader("Twitter Post Creator")
+    postBtn = postToTwitterLeftCol.button('Post to Twitter')
 
-    #c2.subheader("Post Preview")
-    
-    tweet = c1.text_area("Post", max_chars=280, height=2)
+    #####################################################################
+    # Create right column for writing post and left column for previewing post
+    writePostTextAreaRightColumn, previewPostTextAreaLeftColumn = st.columns(2)
+    tweet = writePostTextAreaRightColumn.text_area("Post", height=250)
+    previewPostTextAreaLeftColumn.text("Preview")
+    _preview_tweet(previewPostTextAreaLeftColumn, tweet, static_store)
 
-    c2.text("Preview")
-
+    #####################################################################
+    # Bottom section for uploading and previewing images
     st.subheader("Upload Images")
-    static_store = get_static_store()
 
     con1 = st.container()
-    c11, c12 = con1.columns([1,5])
+    narrowRightCol, wideLeftCol = con1.columns([1, 5])
 
+    # Create photos uploader
+    uploadedFile = wideLeftCol.file_uploader("Upload")
+
+    # Extra spaces to center below buttons
+    narrowRightCol.write(" ")
+    narrowRightCol.write(" ")
+
+    # Create buttons for clearing and showing uploaded photos
+    clearUploadsBtn = narrowRightCol.button("Clear file list")
+    showUploadsBtn = narrowRightCol.checkbox("Show content of files?")
+
+    # Center column for diplaying the uploaded photos
     _, photoCenter, _ = st.columns(3)
 
-    result = c12.file_uploader("Upload")
-    c11.write(" ")
-    c11.write(" ")
-    if c11.button("Clear file list"):
-        static_store.clear()
-    if c11.checkbox("Show content of files?"):
-        for img in static_store.values():
-            photoCenter.image(load_image(img), width=450)
-
-    if result:
+    if uploadedFile:
         # Process you file here
-        value = result.getvalue()
+        value = uploadedFile.getvalue()
 
         # And add it to the static_store if not already in
-        if not result in static_store.values():
-            static_store[result.name] = result
-    # else:
-    #     static_store.clear()  # Hack to clear list if the user clears the cache and reloads the page
-    #     st.info("Upload one or more `.py` files.")
-    
-    
-    if tweet:
-        previewTweet(c2, tweet, static_store)
+        if not uploadedFile in static_store.values():
+            static_store[uploadedFile.name] = uploadedFile
+
+    if clearUploadsBtn:
+        static_store.clear()
+    if showUploadsBtn:
+        for img in static_store.values():
+            photoCenter.image(_load_image(img), width=450)
+
+   
+
+
+
+
+
 
 
