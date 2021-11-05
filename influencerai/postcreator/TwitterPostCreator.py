@@ -3,19 +3,28 @@ import string
 from PIL import Image
 from typing import Dict
 import streamlit as st
-
+import tweepy
+import emoji
+import os
 
 ####################################################
 # Globals
 ####################################################
 
+consumer_key = ""
+consumer_secret = ""
+access_token = ""
+access_token_secret = ""
+
+auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
+auth.set_access_token(access_token, access_token_secret)
+
+api = tweepy.API(auth) 
+
 ####################################################
 # Functions
 ####################################################
 
-def _build_layout():
-    pass
-    
 
 @st.cache(allow_output_mutation=True)
 def _get_static_store() -> Dict:
@@ -25,8 +34,8 @@ def _get_static_store() -> Dict:
 
 def twitter_char_limit(post):
     emojis = list(filter(lambda p: p.startswith(':') & p.endswith(':'), post.split()))
-    for emoji in emojis:
-        post = post.replace(emoji, ' ')
+    for e in emojis:
+        post = post.replace(e, ' ')
     # print(emojis, len(post))
     if len(post) <= 280:
         return True, len(post)
@@ -35,27 +44,109 @@ def twitter_char_limit(post):
 
 
 def _preview_tweet(stColumn: st, tweet: string, static_store):
+    tweetPostDict = {}
     for i, post in enumerate(tweet.split('\n\n\n')):
-        charLimit, charLen = twitter_char_limit(post)
-        if charLimit:
+        tweetPostDict[i] = {}
+        tweetPostDict[i]['text'] = emoji.emojize(post, use_aliases=False)
+        #print(tweetPostDict[i]['text'])
+        isCharLimit, charLen = twitter_char_limit(post)
+        if isCharLimit:
             stColumn.info("Post "+str(i+1)+" --- Char Length: "+str(charLen))
         else:
             stColumn.error("Post "+str(i+1)+" --- Char Length: "+str(charLen))
         for line in post.split('\n'):
-            stColumn.markdown(line, unsafe_allow_html=True)
+            stColumn.markdown(emoji.emojize(line, use_aliases=False), unsafe_allow_html=True)
         selectedImgs = stColumn.multiselect("Select Images", static_store.keys(), key=str(i))
-        for i in selectedImgs:
-            stColumn.image(_load_image(static_store[i]), width=250)
+        tweetPostDict[i]['image'] = selectedImgs
+        for img in selectedImgs:
+            stColumn.image(_load_image(static_store[img]), width=250)
+    #print(tweetPostDict)
+    return tweetPostDict
 
 
 def _load_image(image_file):
-   img = Image.open(image_file)
+   img = Image.open(image_file, mode='r')
    return img      
 
+def save_uploadedfile(uploadedfile):
+    tmpUploadDir = os.path.join(os.getcwd(), 'tmpUploads')
+    if not os.path.exists(tmpUploadDir):
+        os.makedirs(tmpUploadDir)
+    with open(os.path.join(tmpUploadDir, uploadedfile.name), "wb") as f:
+        f.write(uploadedfile.getbuffer())
+        #return st.success("Saved File:{} to Data".format(uploadedfile.name))
 
-def clicked(postBtn, section):
-    if postBtn:
-        section.title("Hello")
+def delete_tmpdirfiles_after_upload():
+    # Delete files left in tmpDir after images have been uploaded
+    tmpUploadDir = os.path.join(os.getcwd(), 'tmpUploads')
+
+    try:
+        for file in os.listdir(tmpUploadDir):
+            os.remove(file)
+    except OSError as e:
+        print("Error: %s : %s" % (tmpUploadDir, e.strerror))
+
+def _post_to_twitter(tweetPost: dict, static_store):
+    # vaiables
+    tmpUploadDir = os.path.join(os.getcwd(), 'tmpUploads')
+
+    # post regular tweet
+    if len(tweetPost) == 1:
+        if len(tweetPost[0]['image']) > 0:
+            # post tweet with image
+            media_ids = []
+            imgName = tweetPost[0]['image'][0]
+            res = api.media_upload(filename=os.path.join(tmpUploadDir, imgName))
+            media_ids.append(res.media_id)
+            
+            api.update_status(status=tweetPost[0]['text'], media_ids=media_ids)
+            
+        else:
+            #post only tweet
+            api.update_status(status=tweetPost[0]['text'])
+
+    # post tweet thread
+    elif len(tweetPost) > 1:
+        twitterId = None
+        for tweet in tweetPost.values():
+            # post media tweet
+            if len(tweet['image']) > 0:
+
+                # Upload images and get media_ids
+                media_ids = []
+                for imgName in tweet['image']:
+                    res = api.media_upload(filename=os.path.join(tmpUploadDir, imgName))
+                    media_ids.append(res.media_id)
+                    print("Added one")
+
+                # post subpost with image
+                if twitterId != None:
+                    # post with link to previous tweet
+                    twitterId = api.update_status(status=tweet['text'], media_ids=media_ids, in_reply_to_status_id=twitterId, auto_populate_reply_metadata=True)
+                    twitterId = twitterId.id 
+                    print("Tweet + Image Sub")
+
+                # post atarting post with image 
+                else:
+                    twitterId = api.update_status(status=tweet['text'], media_ids=media_ids)
+                    twitterId = twitterId.id 
+                    print("Tweet + Image")
+
+            #post text tweet
+            else:
+                #post only tweet
+                if twitterId:
+                    # post with link to previous tweet
+                    twitterId = api.update_status(status=tweet['text'], in_reply_to_status_id=twitterId, auto_populate_reply_metadata=True)
+                    twitterId = twitterId.id 
+                    print("Tweet Sub")
+                else:
+                    twitterId = api.update_status(status=tweet['text'])
+                    twitterId = twitterId.id 
+                    print("Tweet")
+
+    delete_tmpdirfiles_after_upload()   
+    
 
 ####################################################
 # Main function
@@ -74,18 +165,20 @@ def twitter_postcreator_view():
 
     #####################################################################
     # Create Title and Subtitle
-    st.header("Twitter")
+    rightTitleCol, leftSuccessPostStat = st.columns(2)
+    rightTitleCol.header("Twitter")
 
-    subheaderRightCol, postToTwitterLeftCol = st.columns(2)
-    subheaderRightCol.subheader("Twitter Post Creator")
-    postBtn = postToTwitterLeftCol.button('Post to Twitter')
+    subheaderLeftCol, postToTwitterRightCol, newPostRightCol = st.columns([2,1,1])
+    subheaderLeftCol.subheader("Twitter Post Creator")
+    postBtn = postToTwitterRightCol.button('Post to Twitter')
+    newPost = newPostRightCol.button("Create New Post")
 
     #####################################################################
     # Create right column for writing post and left column for previewing post
     writePostTextAreaRightColumn, previewPostTextAreaLeftColumn = st.columns(2)
     tweet = writePostTextAreaRightColumn.text_area("Post", height=250)
     previewPostTextAreaLeftColumn.text("Preview")
-    _preview_tweet(previewPostTextAreaLeftColumn, tweet, static_store)
+    tweetPost = _preview_tweet(previewPostTextAreaLeftColumn, tweet, static_store)
 
     #####################################################################
     # Bottom section for uploading and previewing images
@@ -95,7 +188,7 @@ def twitter_postcreator_view():
     narrowRightCol, wideLeftCol = con1.columns([1, 5])
 
     # Create photos uploader
-    uploadedFile = wideLeftCol.file_uploader("Upload")
+    uploadedFiles = wideLeftCol.file_uploader("Upload", accept_multiple_files=True)
 
     # Extra spaces to center below buttons
     narrowRightCol.write(" ")
@@ -108,25 +201,27 @@ def twitter_postcreator_view():
     # Center column for diplaying the uploaded photos
     _, photoCenter, _ = st.columns(3)
 
-    if uploadedFile:
-        # Process you file here
-        value = uploadedFile.getvalue()
+    if uploadedFiles:
+        for file in uploadedFiles:
+            # Process you file here
+            value = file.getvalue()
 
-        # And add it to the static_store if not already in
-        if not uploadedFile in static_store.values():
-            static_store[uploadedFile.name] = uploadedFile
+            # And add it to the static_store if not already in
+            if file.name not in static_store.values():
+                static_store[file.name] = file
+                save_uploadedfile(file)
 
     if clearUploadsBtn:
         static_store.clear()
     if showUploadsBtn:
         for img in static_store.values():
             photoCenter.image(_load_image(img), width=450)
+            #print(static_store.keys())
 
+    if postBtn:
+        try:
+            _post_to_twitter(tweetPost, static_store)
+            leftSuccessPostStat.success("Tweet has been posted")
+        except:
+            leftSuccessPostStat.error("Post Unsuccessful")
    
-
-
-
-
-
-
-
