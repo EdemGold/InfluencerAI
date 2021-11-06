@@ -128,3 +128,11 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .vscode/settings.json
+
+# Other Directories
+/tmpUploads
+
+# Other Files
+prototype*.py
+*test*.py
+config.py
