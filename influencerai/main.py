@@ -1,7 +1,7 @@
 # from core.Core import Core
 import streamlit as st
 from postcreator.TwitterPostCreator import twitter_postcreator_view
-    
+
 
 
 if __name__ == '__main__':
