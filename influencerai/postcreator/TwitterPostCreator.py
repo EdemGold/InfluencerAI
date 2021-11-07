@@ -2,12 +2,13 @@ import random
 import string
 from PIL import Image
 from typing import Dict
+from emoji.core import emojize
 import streamlit as st
 import tweepy
 import emoji
 import os
 import config
-
+from postcreator.EmojiDictionary import emojiDict
 
 ####################################################
 # Globals
@@ -167,6 +168,12 @@ def twitter_postcreator_view():
     #####################################################################
     # Create sidebar
     st.sidebar.write("Sidbar this is",)
+    search_emoji = st.sidebar.text_input("Search Emojis")
+
+    if search_emoji:
+        foundEmojis = list(filter(lambda x: x.find(search_emoji.lower()) != -1, emojiDict))
+        foundEmojized = list(lambda x: emojize(x) for x in  foundEmojis)
+        st.sidebar.markdown(emojize(' '.join(foundEmojis)))
 
     #####################################################################
     # Create Title and Subtitle
