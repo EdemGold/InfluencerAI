@@ -131,8 +131,14 @@ dmypy.json
 
 # Other Directories
 /tmpUploads
+/test_files
 
 # Other Files
 prototype*.py
 *test*.py
 config.py
+*.csv
+
+# Generated files from app
+SchedulerLog.txt
+tweetsdf.pickle
