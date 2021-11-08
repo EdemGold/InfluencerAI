@@ -154,6 +154,25 @@ def _post_to_twitter(tweetPost: dict, static_store):
     _delete_tmpdirfiles_after_upload()
 
 
+def schedule_tweet(schedDate, schedTime, tweet):
+    tweetdf = 'c:\\Users\\kornas\\Desktop\\SocialAI\\InfluencerAI\\influencerai\\tools\\TweetScheduler\\tweetsdf.pickle'
+    with open(tweetdf, "rb") as tweets:
+        df = pickle.load(tweets)
+
+    data = {
+        'sno': len(df)+1,
+        'tweet': tweet,
+        'tweet_at': str(schedDate) + ' ' + str(schedTime),
+        'sent': False
+    }
+
+    df = df.append(data, ignore_index=True)
+    
+    with open(tweetdf, "wb") as tweets:
+        df = pickle.dump(df, tweets)
+    st.success('Tweet has been scheduled')
+
+
 ####################################################
 # Main function
 ####################################################
@@ -180,10 +199,14 @@ def twitter_postcreator_view():
     rightTitleCol, leftSuccessPostStat = st.columns(2)
     rightTitleCol.header("Twitter")
 
-    subheaderLeftCol, postToTwitterRightCol, newPostRightCol = st.columns([2, 1, 1])
-    subheaderLeftCol.subheader("Twitter Post Creator")
-    postBtn = postToTwitterRightCol.button('Post to Twitter')
-    newPost = newPostRightCol.button("Create New Post")
+    subheaderLeftCol, newPostRightCol, postToTwitterRightCol, col4, col5, col6 = st.columns([2,1,1,1,1,1])
+    subheaderLeftCol.subheader('Twitter Post Creator')
+    postBtn = postToTwitterRightCol.button('🐦Post to Twitter')
+    newPost = newPostRightCol.button('🔄 Create New Post')
+
+    schedBtn = col4.button('📘 Schedule Post')
+    schedDate = col5.date_input('Schedule Date',)
+    schedTime = col6.time_input('Schedule Time')
 
     #####################################################################
     # Create right column for writing post and left column for previewing post
